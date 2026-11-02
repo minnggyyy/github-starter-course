@@ -222,6 +222,25 @@ CASES = [
          fixtures_hint=["fixtures.http：200 / 403 / 404 三组", "storage 种子：30 天历史 + 5 天历史两套", "agentChecks：原因 ok / error；阈值以下 callLog=0"],
          tags=("github", "schedule", "requestJson", "chart")),
 
+    case("S3-05", "P0", "Tabbit AI 用量监控",
+         """连接我的 Tabbit AI 账号，做一张 AI 用量卡：显示今天和本月用了多少次、多少 token，剩余额度和什么时候重置，画出最近 30 天的用量趋势；快用完的时候让 AI 提醒我按现在的速度大概哪天会用完。""",
+         variants=[("简短", "链接我的 Tabbit AI，做个用量卡。"),
+                   ("加约束", "Tabbit AI 用量卡：只显示接口真实返回的指标，没有的就写暂无；没连接账号就提示连接；别自己轮询，按平台的刷新规则来。")],
+         primary_size="6x3", profile="complex", capabilities=("persistence", "records", "modal"),
+         agent=dict(trigger="schedule", output="judgement", side_effect="L1", host_apis=("fetchData", "agent.schedules", "agent.run", "storage")),
+         acceptance=[
+             "Tabbit 用量不在 9 个平台数据源里：必须使用平台提供的真实用量接口或 connected source（ID 与字段以实际契约为准，brief 写明来源）；平台没有该接口时 feature=blocked，不得用 fixtures 冒充用量",
+             "未连接/未授权 → 显示「请连接 Tabbit 账号」，连接态与数据态分开；接口 error 显示可重试",
+             "只显示接口真实返回的指标（次数 / token / 剩余额度 / 重置时间），缺失指标显示「暂无」，不推算不虚构",
+             "每日采样写 storage 历史（保留 30 天），同日重复不新增；今日/本月汇总与趋势 SVG 本地计算绘制；历史不足时显示「数据不足 N 天」",
+             "耗尽预测用本地线性外推，AI 只生成提醒文案并标注「推测」；只在剩余低于阈值时触发；agent 不可用时数字与趋势仍显示",
+             "刷新遵循 Host cache/rate 提示，不在卡内轮询；说明本卡自己的 AI 调用是否计入用量（以接口口径为准）",
+             "3x3：剩余额度 + 今日用量 + 入口",
+         ],
+         negative=["编造 token 数或额度", "fixtures 冒充真实用量并标 passed", "卡内 setInterval 轮询", "AI 不可用时整卡不可用"],
+         fixtures_hint=["fixtures.responses：正常 / 缺 token 字段 / 未授权 / error", "storage 种子：30 天历史 + 剩余 5% 触发提醒", "agentChecks：提醒 ok / error；阈值以上 callLog=0"],
+         tags=("tabbit", "usage", "schedule", "chart")),
+
     # ───────────────────────── S4 多源聚合推理 ─────────────────────────
     case("S4-02", "P1", "四平台热点聚合",
          """把知乎、B站、小红书、抖音四个热榜合成一张卡，AI 把说同一件事的条目合并去重，按热度排序，标出来自哪些平台。""",
