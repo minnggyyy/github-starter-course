@@ -20,7 +20,6 @@ FAMILIES = OrderedDict([
     ("S2", ("自然语言 → 结构化记录", "对话输入 · record[] 输出 · L1 写本卡 storage，必须经用户确认")),
     ("S3", ("定时/后台监控", "定时触发 · 文本/json · L1，由 Host 调度，卡片只读 storage；含 agent 自带工具取数")),
     ("S4", ("多源聚合推理", "点击/定时 · 判断建议 · L0，每个数据源独立绑定")),
-    ("S5", ("主动洞察/提醒", "数据变化触发 · 文案 · L1，触发逻辑本地算、AI 只写文案")),
     ("S7", ("外部动作", "点击 · 动作 · L2，构建/测试期禁止真实执行，运行期需 Host 二次确认")),
     ("S8", ("Agent 辅助配置", "对话输入 · config 变更 · L1，AI 输出必须经 schema 校验")),
     ("S9", ("生成式内容与进度", "一次生成 · 结构化内容 · L1，进度状态机持久化，资源链接必须真实检索")),
@@ -307,20 +306,6 @@ CASES = [
          negative=["编造日历事件或 Notion 条目", "用本地 storage 冒充 Notion/日历连接", "某一源未连接导致整卡不可用", "标记完成试图写回外部系统"],
          fixtures_hint=["dataChecks：邮件 ok / connection_required", "agentChecks：三源 json / 缺 sourceRef 条目 / Notion 连接器不可用 / error", "modalChecks：标记完成 → storage → reload"],
          tags=("mail", "calendar", "notion", "multi-source", "connectors")),
-
-    # ───────────────────────── S5 主动洞察/提醒 ─────────────────────────
-    case("S5-01", "P1", "断签鼓励",
-         """连续打卡卡，如果到晚上 8 点还没打卡，显示一句鼓励语，AI 生成，别每天都是同一句。""",
-         primary_size="3x3", profile="complex", capabilities=("persistence", "records"),
-         agent=dict(trigger="data-change", output="text", side_effect="L1", host_apis=("storage", "agent.run")),
-         acceptance=[
-             "触发逻辑本地（时间 + 当天未打卡）；鼓励语按日缓存，不重复调用",
-             "agent 失败回退固定文案并标注「非 AI」；打卡后鼓励语消失",
-             "切换四尺寸、reconnect、reload 各一轮，agent 调用次数仍为 1",
-         ],
-         negative=["每次 render 调 agent", "回退文案冒充 AI"],
-         fixtures_hint=["agentChecks：ok / error", "callLog：同日多次 render 仍为 1；continuitySteps 覆盖"],
-         tags=("habit", "alert", "cache", "idempotent")),
 
     # ───────────────────────── S7 外部动作 ─────────────────────────
     case("S7-01", "P0", "邮件草稿回复",
