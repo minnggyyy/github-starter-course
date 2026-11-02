@@ -154,6 +154,26 @@ CASES = [
          fixtures_hint=["agentChecks：全部匹配 / 含未知习惯 / 空输入"],
          tags=("habit", "nl2record")),
 
+    case("S2-03", "P0", "截图记账",
+         """做一张截图记账卡：我把账单截图（支付宝、微信、银行短信截图都行）发进去，AI 自动识别金额、商家、时间，并自动分类（餐饮、交通、购物这些），确认后记到账目里；卡片上显示本月各分类支出，展开页能看和改每一笔。""",
+         variants=[("简短", "发账单截图就能自动分类记账的卡。"),
+                   ("加约束", "截图记账：识别结果先让我确认再入账；同一张截图别记两次；识别不出金额的不能入账；分类我改过一次以后，同一个商家下次自动用我改的分类。")],
+         primary_size="6x6", profile="complex", capabilities=("persistence", "records", "edit-session", "form-editor", "modal"),
+         agent=dict(trigger="input", output="record[]", side_effect="L1", host_apis=("agent.run", "storage", "openModal", "closeModal")),
+         acceptance=[
+             "图片输入必须经 Host 提供的附件/图片能力交给 agent（契约假设：host.agent.run 的 input 支持 image 引用）；无该能力时 feature=blocked 并保留手动记账，不得用文本框冒充截图识别",
+             "识别结果（金额 / 商家 / 时间 / 分类）先进入可编辑表单，确认后才写 storage，reload 后保留；取消不入账",
+             "金额识别失败或低置信时确认禁用并提示；分类限定枚举，AI 给出的未知分类归「其他」",
+             "同一张截图去重（按识别指纹或图片哈希）不重复入账；多笔账单一张截图时逐笔确认",
+             "用户修改过的商家→分类映射持久化，下次同商家优先使用（本地规则，AI 结果为次）",
+             "本月分类汇总本地计算；展开页可改每一笔；save-failure 保留输入可重试",
+             "3x3：本月总支出 + 最大分类 + 入口；6x3：分类条形；3x6/6x6 含最近账目",
+             "agentChecks：清晰截图 / 多笔截图 / 模糊截图无金额 / 非账单图片 / error",
+         ],
+         negative=["识别结果未经确认直接入账", "金额缺失默认 0", "无图片能力时用假识别充数", "商家分类映射只存内存"],
+         fixtures_hint=["fixtures.agent.responses：单笔 / 多笔 / 无金额 / 非账单 / 非 JSON", "storage 种子：已有账目 + 商家分类映射", "modalChecks：确认入账 → storage → reload；改分类 → 下次同商家自动套用"],
+         tags=("finance", "ocr", "image", "nl2record")),
+
     # ───────────────────────── S3 定时/后台监控 ─────────────────────────
     case("S3-01", "P0", "每日晨报",
          """做一张「每日晨报」卡：每天早上 8 点自动生成，内容有北京天气、知乎热榜前 3 条、未读邮件数，AI 写成一小段。卡片上要显示生成时间和下次生成时间，也要能手动「立即生成」。""",
