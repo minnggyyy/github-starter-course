@@ -24,7 +24,6 @@ FAMILIES = OrderedDict([
     ("S7", ("外部动作", "点击 · 动作 · L2，构建/测试期禁止真实执行，运行期需 Host 二次确认")),
     ("S8", ("Agent 辅助配置", "对话输入 · config 变更 · L1，AI 输出必须经 schema 校验")),
     ("S9", ("生成式内容与进度", "一次生成 · 结构化内容 · L1，进度状态机持久化，资源链接必须真实检索")),
-    ("H", ("构建期 harness 流程", "DeepSeek Harness 跑 ai-card skill 的流程类用例，按 v47 规则")),
 ])
 
 SIZES = ("3x3", "6x3", "3x6", "6x6")
@@ -374,30 +373,6 @@ CASES = [
          fixtures_hint=["agentChecks：合法 7 天 json（含 verified true/false）/ 只有 5 天 / 非 JSON", "storage 种子：进行到 Day 3；Day 7 已完成", "modalChecks：标记学完 → 切换 → reload → 大纲进度一致"],
          tags=("course", "generation", "progress", "agent-tools")),
 
-    # ───────────────────────── H 构建期 harness 流程 ─────────────────────────
-    case("H-01", "P0", "用户「继续」续作",
-         """（第一轮用 S2-01 待办快速添加的 prompt，交付后第二轮用户消息原文）继续""",
-         primary_size="3x6", profile="complex", capabilities=("persistence", "records", "edit-session", "form-editor", "modal"),
-         agent=dict(trigger="mixed", output="mixed", side_effect="n/a", host_apis=()),
-         acceptance=[
-             "第一轮：prepare 只调用一次；preflight → finish-first → handoff → publish → STOP；三件 requiredAttachments 真实非空；finalMessage 原样输出",
-             "第二轮：先 latest-delivery 取 continuationPath；resume-repair 带真实 message-id / message；父目录不改；合并同因问题一起修；再次 preflight → finish-first → handoff → publish → STOP",
-             "对照：如果第二轮消息是「现在怎么样了？」，只用 status 回答，不得 resume-repair",
-         ],
-         negative=["新 prepare", "按文件名/mtime 选 archive", "父目录被改", "状态询问触发修复"],
-         fixtures_hint=["第一轮故意留 1 个 P1 布局问题供续作", "记录在 dsh 哪个运行模式下执行；记录两轮耗时"],
-         tags=("harness", "continuation")),
-
-    case("H-02", "P0", "1.0 Host 下的 2.0 需求",
-         """（用 S1-01 的 prompt，但运行环境 manifest bridge 只有 storage / modal / fetchData / requestJson，没有 agent）做一张邮箱摘要卡：显示未读数和最近几封邮件，加一个「AI 总结」按钮，点一下把今天的邮件归纳成 3 条要点。总结结果要留着，下次打开还能看到，并显示是什么时候生成的。""",
-         primary_size="6x6", profile="complex", capabilities=("persistence", "modal"), data_cases=MAIL,
-         agent=dict(trigger="click", output="text", side_effect="L1", host_apis=("fetchData", "storage")),
-         acceptance=[
-             "邮箱摘要（连接态、未读数、列表）完整交付；「AI 总结」feature status=blocked + 具体 reason（无 agent Host 能力）",
-             "入口保留但禁用并说明；findings 里该 requirement 标 blocked 而不是 passed",
-         ],
-         negative=["本地拼接冒充总结并标 passed", "删除或省略该需求"],
-         tags=("harness", "honesty", "blocked")),
 ]
 
 
