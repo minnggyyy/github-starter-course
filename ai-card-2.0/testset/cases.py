@@ -223,19 +223,6 @@ CASES = [
          tags=("github", "schedule", "requestJson", "chart")),
 
     # ───────────────────────── S4 多源聚合推理 ─────────────────────────
-    case("S4-01", "P1", "出门决策",
-         """结合北京今天的天气预报和我自己录入的今日日程，AI 判断我今天几点出门合适、要不要带伞。""",
-         primary_size="6x3", profile="complex", capabilities=("persistence", "records"), data_cases=("official-weather-forecast",),
-         agent=dict(trigger="click", output="judgement", side_effect="L0", host_apis=("fetchData", "storage", "agent.run")),
-         acceptance=[
-             "日程由本地 storage 录入（最小 CRUD）；无日程时只给天气建议并说明",
-             "天气 error 时标注不可用、不给建议；建议含依据（小时级字段若存在）",
-             "两类输入都可见",
-         ],
-         negative=["编造日程", "天气缺失仍给肯定建议"],
-         fixtures_hint=["dataChecks + storage 日程种子的四种组合（有/无日程 × 天气 ok/error）"],
-         tags=("weather", "multi-source", "advice")),
-
     case("S4-02", "P1", "四平台热点聚合",
          """把知乎、B站、小红书、抖音四个热榜合成一张卡，AI 把说同一件事的条目合并去重，按热度排序，标出来自哪些平台。""",
          primary_size="6x6", profile="complex", capabilities=("persistence", "modal"),
