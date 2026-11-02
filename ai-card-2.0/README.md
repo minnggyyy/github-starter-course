@@ -11,7 +11,7 @@
 2. **2.0 的"agent 能力"要拆成两层来测**，否则测试集会混在一起：
    - **构建期 agent（Build-time）**：harness（DeepSeek Harness）跑 ai-card skill 生成/修复卡片。v44/v47 已经定义了这层的流程，2.0 要验证它在 dsh 下仍然成立，并且能正确处理"运行时 agent 能力声明"。
    - **运行期 agent（Run-time）**：卡片在用户手里运行时，通过 Host 调用 agent（摘要、解析、建议、动作）。这是 2.0 真正的新增面，需要**新的 Host 契约**。
-3. **运行期场景按三个维度切分**：触发方式（点击 / 定时 / 数据变化 / 对话输入）× 输出类型（文本 / 结构化记录 / 判断建议 / 外部动作）× 副作用等级（L0 只读推理、L1 写本卡 storage、L2 写外部系统）。由此得到 9 个场景族 S1–S9，加上构建期场景族 H，共 **40 条测试 prompt**（P0 基础 15 条、P1 进阶 20 条、P2 压力/对抗 5 条）。
+3. **运行期场景按三个维度切分**：触发方式（点击 / 定时 / 数据变化 / 对话输入）× 输出类型（文本 / 结构化记录 / 判断建议 / 外部动作）× 副作用等级（L0 只读推理、L1 写本卡 storage、L2 写外部系统）。由此得到 10 个场景族 S1–S10，加上构建期场景族 H，共 **24 条测试 prompt**（P0 基础 13 条、P1 进阶 10 条、P2 对抗 1 条）。题材上不含预算/记账类；热榜用小红书、知乎、B站、抖音；新增 GitHub Trending、GitHub 星标、邮件+日历+Notion 待办聚合、7 天 agent 课程四个 agent 特有场景。
 4. **2.0 最大的风险不是做不出功能，而是"伪 AI"**：用本地字符串拼接冒充总结、用 storage 冒充日历、agent 不可用时悄悄隐藏功能。测试集里每一条都带"诚实性"断言，这是沿用 v47 的核心精神（failed/blocked/unverified 必须保留）。
 
 ---
@@ -72,6 +72,10 @@ manifest.json
     -> Host 必须弹出用户确认；本地 runner 永远不真实执行
   事件 "tabbit:agent-result"（定时任务完成后 Host 派发，卡片据此 reload storage）
 
+  agent 自带工具取数（GitHub trending、课程资料检索、Notion/日历连接器等不在 9 个平台数据源里的数据）
+    -> 只能通过 host.agent.run 由 agent 用自身工具/连接器获取，以结构化 JSON 返回，每条带 sourceRef/url 与 verified 标记
+    -> 卡片按 schema 校验后渲染；agent 无该工具或连接器时对应 feature=blocked，不得用 fixture/缓存/本地 storage 冒充
+
 本地测试（checks.json）
   agentChecks: [ { taskId, sizes, selector, trigger:{op:"click",selector},
                    a:{response, text}, b:{response, text},
@@ -104,32 +108,27 @@ manifest.json
 
 把常见需求落到这个立方体上，自然聚成 9 个场景族：
 
-| 族 | 名称 | 触发 | 输出 | 副作用 | 典型卡 | 关键风险 |
+| 族 | 名称 | 触发 | 输出 | 副作用 | 用例 | 关键风险 |
 |---|---|---|---|---|---|---|
-| S1 | 按需摘要/解读 | 点击 | 文本 | L0 | 邮箱 AI 总结、热榜一句话解读、天气出行建议、记账月度复盘 | 伪 AI；数据未连接时仍能"总结" |
-| S2 | 自然语言 → 结构化记录 | 对话输入 | record[] | L1 | 口述记账、待办快速添加、习惯批量打卡、账单短信识别 | 解析结果直接入库不经确认；幂等 |
-| S3 | 定时/后台产出 | 定时 | 文本/json | L0/L1 | 每日晨报、周支出复盘、热榜日报归档 | 过期状态；部分源失败；重复生成 |
-| S4 | 多源聚合推理 | 点击/定时 | 判断 | L0 | 天气+日程出门决策、五平台热点去重、邮件+待办优先级 | 每源独立绑定；部分失败降级 |
-| S5 | 主动洞察/预警 | 数据变化 | 建议 | L1 | 预算超支预警、异常消费、断签鼓励 | 阈值必须本地算，AI 只写文案；dismiss 持久化 |
-| S6 | 对话式追问 | 对话输入 | 文本/动作 | L0/L1 | 记账问答、追问转操作、热搜解释 | modal 独立实例重建数据；回答数字与本地统计一致 |
-| S7 | 外部动作 | 点击 | 动作 | L2 | 邮件草稿回复、邮件转日程、扣费提醒 | 测试期真实发送；无 API 时用 storage 冒充 |
-| S8 | Agent 辅助配置 | 对话输入 | config | L1 | 自然语言改城市/天数、自然语言过滤热榜 | config 与绑定参数一致；过滤是后处理 |
-| S9 | 安全与鲁棒性 | 任意 | 任意 | 任意 | 数据注入、输出越界、超时限流、隐私最小化、重复调用 | 对抗性，P2 |
+| S1 | 按需摘要/解读 | 点击 | 文本 | L0 | 邮箱 AI 总结、小红书热榜一句话解读、天气出行建议 | 伪 AI；数据未连接时仍能"总结" |
+| S2 | 自然语言 → 结构化记录 | 对话输入 | record[] | L1 | 待办快速添加、习惯批量打卡 | 解析结果直接入库不经确认；幂等 |
+| S3 | 定时/后台监控 | 定时 | 文本/json | L1 | 每日晨报、抖音热榜日报归档、GitHub Trending 监控、GitHub 星标监控 | 过期状态；部分源失败；重复生成；agent 自带工具取数的诚实性；requestJson 限流 |
+| S4 | 多源聚合推理 | 点击/定时 | 判断/json | L0/L1 | 天气+日程出门决策、四平台热点去重、邮件+待办优先级、邮件+日历+Notion 今日待办 | 每源独立绑定与连接态；部分失败降级；不编造条目 |
+| S5 | 主动洞察/提醒 | 数据变化 | 文案 | L1 | 断签鼓励 | 触发逻辑必须本地算；按日缓存；回退文案不冒充 AI |
+| S6 | 对话式追问 | 对话输入 | 文本/动作 | L0/L1 | 待办追问转操作、知乎热搜解释 | modal 独立实例重建数据；动作白名单；无搜索能力不声称查证 |
+| S7 | 外部动作 | 点击 | 动作 | L2 | 邮件草稿回复、邮件转日程 | 测试期真实发送；无 API 时用 storage 冒充 |
+| S8 | Agent 辅助配置 | 对话输入 | config/json | L1 | 天气自然语言改配置、小红书热榜自然语言过滤 | config 与绑定参数一致；过滤是后处理 |
+| S9 | 生成式内容与进度 | 点击（一次） | json | L1 | Agent 学习 7 天课程 | 每次打开重新生成；编造链接；进度不持久化 |
+| S10 | 安全与鲁棒性 | 任意 | 任意 | 任意 | 热榜数据注入 | 对抗性，P2 |
 
 ### 4.2 构建期：harness 流程场景（族 H）
 
 | 编号 | 场景 | 来源 |
 |---|---|---|
-| H-01 | 首版单轮交付（prepare → preflight → finish-first → handoff → publish → STOP，三件附件齐全） | v47 SKILL.md |
-| H-02 | 用户"继续"续作（latest-delivery → resume-repair，不新建 prepare） | v47 continuation |
-| H-03 | 非续作消息（状态询问）不得触发修复 | v47 "Status questions do not authorize repair" |
-| H-04 | 需求含 2.0 能力但运行时只有 1.0 Host → feature blocked，其余照常交付 | composition.md |
-| H-05 | 图片工具不可用 → code-only review 并声明 | review-policy.md |
-| H-06 | 跨会话 / 错误 archive 续作 → fail-closed | v47 conversation binding |
-| H-07 | 续作里夹带需求变更（改固定风格）→ 拒绝改风格，只修复 | fixed-style 规则 |
-| H-08 | 构建期不得产生真实外部副作用 | "do not send/archive real emails" |
-| H-09 | 固定套件（budget）+ 新增 agent 能力，checks 不可改 | fixed-suites.md |
-| H-10 | 大需求 + 时间目标，不得砍需求，blocked 要逐条列出 | "4–6 minute goal is not permission to omit" |
+| H-01 | 首版单轮交付 + 用户"继续"续作（含对照：状态询问不得触发修复） | v47 SKILL.md、continuation 规则 |
+| H-02 | 需求含 2.0 能力但运行时只有 1.0 Host → feature blocked，其余照常交付 | composition.md |
+
+其余构建期场景（图片工具不可用 → code-only、跨会话续作 fail-closed、续作夹带改风格、构建期零副作用、固定套件、大需求不砍）本轮未列入 24 条，作为后续回归用例备选。
 
 ### 4.3 横切要求（每条用例默认带）
 
@@ -162,9 +161,9 @@ python3 ai-card-2.0/testset/cases.py
 | `negative` | 一旦出现即判 failed 的"伪 AI"/越界行为 |
 | `fixtures_hint` | 建议的 fixtures/agentChecks 覆盖点 |
 
-建议的评分维度（每条 0/1）：功能完整性、四尺寸几何、诚实性（blocked/unverified 标注正确）、agent 契约（agentChecks 全过 + 调用次数正确）、鲁棒性（S9/H 用例）。先跑 P0（15 条）作为 2.0 MVP 门槛，再跑 P1，P2 作为回归/红队。
+建议的评分维度（每条 0/1）：功能完整性、四尺寸几何、诚实性（blocked/unverified 标注正确）、agent 契约（agentChecks 全过 + 调用次数正确）、鲁棒性（S9/H 用例）。先跑 P0（13 条）作为 2.0 MVP 门槛，再跑 P1，P2 作为回归/红队。
 
-对照组：`benchmarks/v43/budget` 的固定 checks 对应本测试集的 S1-04 / S2-01 / S5-01，建议同一张预算卡在"无 agent"和"有 agent"两种运行时各跑一次，验证新增能力没有破坏原有 CRUD 断言。
+对照组：`benchmarks/v43/todo` 的固定 checks 对应本测试集的 S2-01 / S6-01 / H-01，建议同一张待办卡在"无 agent"和"有 agent"两种运行时各跑一次，验证新增能力没有破坏原有 CRUD 断言。
 
 ---
 
